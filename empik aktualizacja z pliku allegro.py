@@ -11,7 +11,7 @@ st.info("""
 Nagłówki z Twoich plików są IGNOROWANE!
 """)
 
-# uploader
+# 1) uploader
 empik_file   = st.file_uploader("📤 Wgraj plik EMPiK (.xlsx)",   type=["xlsx"])
 allegro_file = st.file_uploader("📤 Wgraj plik ALLEGRO (.xlsx)", type=["xlsx"])
 
@@ -25,34 +25,51 @@ def clean_id_column(s: pd.Series) -> pd.Series:
 
 if empik_file and allegro_file:
     try:
-        # 1️⃣ Wczytanie: bierzemy tylko kolumny A–C, pomijamy oryginalne nagłówki
-        empik_df = pd.read_excel(empik_file, usecols="A:C", engine='openpyxl', header=0)
-        empik_df.columns = ['ID', 'Cena', 'Ilość']
-        allegro_df = pd.read_excel(allegro_file, usecols="A:C", engine='openpyxl', header=0)
-        allegro_df.columns = ['ID', 'Cena', 'Ilość']
+        # 2) Wczytaj Empik tylko kolumna A (ID)
+        empik_df = pd.read_excel(
+            empik_file,
+            usecols=[0],        # tylko pierwsza kolumna
+            header=None,        # ignorujemy nagłówek
+            names=['ID'],       # nadajemy własną nazwę
+            engine='openpyxl'
+        )
 
-        # 2️⃣ Czyszczenie ID
+        # 3) Wczytaj Allegro kolumny A–C (ID, Cena, Ilość)
+        allegro_df = pd.read_excel(
+            allegro_file,
+            usecols=[0,1,2],    # trzy pierwsze kolumny
+            header=None,
+            names=['ID','Cena','Ilość'],
+            engine='openpyxl'
+        )
+
+        # 4) Ujednolicenie ID
         empik_df['ID']   = clean_id_column(empik_df['ID'])
         allegro_df['ID'] = clean_id_column(allegro_df['ID'])
 
-        st.success("Pliki poprawnie wczytane i znormalizowane!")
+        st.success("✅ Pliki poprawnie wczytane i znormalizowane!")
         st.subheader("Empik (lista ID do aktualizacji)")
-        st.dataframe(empik_df[['ID']].head())
+        st.dataframe(empik_df)
 
         st.subheader("Allegro (źródło prawdy: ID, Cena, Ilość)")
-        st.dataframe(allegro_df.head())
+        st.dataframe(allegro_df)
 
-        # 3️⃣ LEFT JOIN na ID
-        result = pd.merge(empik_df[['ID']], allegro_df, on='ID', how='left')
+        # 5) LEFT JOIN → wszystkie ID z Empik
+        result = pd.merge(
+            empik_df,
+            allegro_df,
+            on='ID',
+            how='left'
+        )
 
-        # 4️⃣ Uzupełnienie brakujących wartości zerami
+        # 6) Uzupełnienie braków zerami
         result['Cena'] = result['Cena'].fillna(0)
         result['Ilość'] = result['Ilość'].fillna(0).astype(int)
 
         st.subheader("Wynik aktualizacji")
-        st.dataframe(result.head())
+        st.dataframe(result)
 
-        # 5️⃣ Przygotowanie do pobrania
+        # 7) Przygotowanie do pobrania
         @st.cache_data
         def to_excel(df: pd.DataFrame) -> bytes:
             from io import BytesIO
@@ -61,13 +78,14 @@ if empik_file and allegro_file:
                 df.to_excel(w, index=False)
             return out.getvalue()
 
-        excel_bytes = to_excel(result)
-        st.download_button("📥 Pobierz wynik (.xlsx)",
-                           data=excel_bytes,
-                           file_name="wynik.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button(
+            "📥 Pobierz wynik (.xlsx)",
+            data=to_excel(result),
+            file_name="wynik.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
     except Exception as e:
         st.error(f"❌ Błąd przetwarzania plików:\n{e}")
 else:
-    st.warning("⚠️ Wgraj oba pliki (.xlsx), aby rozpocząć.")
+    st.warning("⚠️ Wgraj oba pliki (Empik i Allegro), aby rozpocząć.")
