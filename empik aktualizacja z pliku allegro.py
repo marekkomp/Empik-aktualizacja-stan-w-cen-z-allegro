@@ -25,9 +25,11 @@ def clean_id_column(s: pd.Series) -> pd.Series:
 
 if empik_file and allegro_file:
     try:
-        # 1️⃣ Wczytujemy z uploaderów i narzucamy nazwy kolumn
-        empik_df   = pd.read_excel(empik_file,   header=None, names=['ID','Cena','Ilość'])
-        allegro_df = pd.read_excel(allegro_file, header=None, names=['ID','Cena','Ilość'])
+        # 1️⃣ Wczytanie: bierzemy tylko kolumny A–C, pomijamy oryginalne nagłówki
+        empik_df = pd.read_excel(empik_file, usecols="A:C", engine='openpyxl', header=0)
+        empik_df.columns = ['ID', 'Cena', 'Ilość']
+        allegro_df = pd.read_excel(allegro_file, usecols="A:C", engine='openpyxl', header=0)
+        allegro_df.columns = ['ID', 'Cena', 'Ilość']
 
         # 2️⃣ Czyszczenie ID
         empik_df['ID']   = clean_id_column(empik_df['ID'])
@@ -41,12 +43,9 @@ if empik_file and allegro_file:
         st.dataframe(allegro_df.head())
 
         # 3️⃣ LEFT JOIN na ID
-        result = pd.merge(empik_df[['ID']],
-                          allegro_df,
-                          on='ID',
-                          how='left')
+        result = pd.merge(empik_df[['ID']], allegro_df, on='ID', how='left')
 
-        # 4️⃣ Uzupełniamy brakujące
+        # 4️⃣ Uzupełnienie brakujących wartości zerami
         result['Cena'] = result['Cena'].fillna(0)
         result['Ilość'] = result['Ilość'].fillna(0).astype(int)
 
@@ -71,4 +70,4 @@ if empik_file and allegro_file:
     except Exception as e:
         st.error(f"❌ Błąd przetwarzania plików:\n{e}")
 else:
-    st.warning("⚠️ Wgraj oba pliki (Empik i Allegro), aby rozpocząć.")
+    st.warning("⚠️ Wgraj oba pliki (.xlsx), aby rozpocząć.")
