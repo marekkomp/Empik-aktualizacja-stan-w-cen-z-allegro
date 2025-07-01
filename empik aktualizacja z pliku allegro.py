@@ -1,68 +1,69 @@
-import streamlit as st
 import pandas as pd
 
-st.title("✅ Empik – aktualizacja z pliku Allegro")
+# ======== KONFIGURACJA NAZW PLIKÓW ========
+EMP_FILE = 'empik.xlsx'
+ALLE_FILE = 'allegro.xlsx'
+OUT_FILE = 'wynik.xlsx'
+# ==========================================
 
-st.info("""
-ℹ️ Ta aplikacja wymusza zawsze układ kolumn:  
-- Kolumna A = ID  
-- Kolumna B = Cena  
-- Kolumna C = Ilość  
-**Nagłówek z pliku jest ignorowany!**
-""")
+def clean_id_column(series):
+    """
+    Funkcja czyszcząca kolumnę ID:
+    - konwertuje wszystko na tekst
+    - usuwa spacje
+    - zamienia na wielkie litery
+    """
+    return (
+        series
+        .astype(str)
+        .str.strip()
+        .str.upper()
+        .str.replace(r'[^A-Z0-9]', '', regex=True)  # opcjonalne: usunie znaki specjalne
+    )
 
-# 1️⃣ Upload plików
-empik_file = st.file_uploader("📤 Wgraj plik Empik (.xlsx)", type=["xlsx"])
-allegro_file = st.file_uploader("📤 Wgraj plik Allegro (.xlsx)", type=["xlsx"])
+def main():
+    print("\n✅ Kolumna A → zawsze ID")
+    print("✅ Kolumna B → zawsze Cena")
+    print("✅ Kolumna C → zawsze Ilość")
+    print("ℹ️ Nagłówki z pliku są ignorowane – kod ustawia je na sztywno.")
+    print("ℹ️ ID są czyszczone i normalizowane (spacje, wielkie litery).\n")
 
-if empik_file and allegro_file:
-    try:
-        # 2️⃣ Wczytaj pliki z wymuszeniem nagłówków
-        empik_df = pd.read_excel(empik_file, header=None, names=['ID', 'Cena', 'Ilość'])
-        allegro_df = pd.read_excel(allegro_file, header=None, names=['ID', 'Cena', 'Ilość'])
+    # 1️⃣ Wczytaj pliki Excel i wymuś nagłówki
+    empik_df = pd.read_excel(EMP_FILE, header=None, names=['ID', 'Cena', 'Ilość'])
+    allegro_df = pd.read_excel(ALLE_FILE, header=None, names=['ID', 'Cena', 'Ilość'])
 
-        st.success("✅ Pliki zostały wczytane poprawnie!")
-        st.subheader("📌 Empik (ID do aktualizacji):")
-        st.dataframe(empik_df)
+    print("✅ Wczytano EMPIK:")
+    print(empik_df.head(), '\n')
 
-        st.subheader("📌 Allegro (źródło prawdy):")
-        st.dataframe(allegro_df)
+    print("✅ Wczytano ALLEGRO:")
+    print(allegro_df.head(), '\n')
 
-        # 3️⃣ Join (LEFT) - zachowaj wszystkie ID z Empik
-        result = pd.merge(
-            empik_df[['ID']],
-            allegro_df,
-            on='ID',
-            how='left'
-        )
+    # 2️⃣ Czyszczenie i normalizacja kolumny ID
+    empik_df['ID'] = clean_id_column(empik_df['ID'])
+    allegro_df['ID'] = clean_id_column(allegro_df['ID'])
 
-        # 4️⃣ Wypełnij brakujące wartości zerami
-        result['Cena'] = result['Cena'].fillna(0)
-        result['Ilość'] = result['Ilość'].fillna(0).astype(int)
+    print("✅ Po czyszczeniu kolumny ID:")
+    print("EMPIK IDs:", empik_df['ID'].unique())
+    print("ALLEGRO IDs:", allegro_df['ID'].unique(), '\n')
 
-        st.subheader("✅ Wynik:")
-        st.dataframe(result)
+    # 3️⃣ Połącz dane (LEFT JOIN – wszystkie ID z Empik)
+    result = pd.merge(
+        empik_df[['ID']],
+        allegro_df,
+        on='ID',
+        how='left'
+    )
 
-        # 5️⃣ Eksport do Excel
-        @st.cache_data
-        def to_excel(df):
-            from io import BytesIO
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False)
-            return output.getvalue()
+    # 4️⃣ Uzupełnij brakujące wartości zerami
+    result['Cena'] = result['Cena'].fillna(0)
+    result['Ilość'] = result['Ilość'].fillna(0).astype(int)
 
-        excel_data = to_excel(result)
+    print("✅ Wynik końcowy:")
+    print(result.head())
 
-        st.download_button(
-            label="📥 Pobierz wynik (.xlsx)",
-            data=excel_data,
-            file_name='wynik.xlsx',
-            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
+    # 5️⃣ Zapisz do Excel
+    result.to_excel(OUT_FILE, index=False)
+    print(f"\n✅ Wynik zapisany do pliku: {OUT_FILE}")
 
-    except Exception as e:
-        st.error(f"❌ Błąd przetwarzania plików: {e}")
-
-else:
-    st.warning("⚠️ Wgraj oba pliki .xlsx, żeby kontynuować.")
+if __name__ == '__main__':
+    main()
