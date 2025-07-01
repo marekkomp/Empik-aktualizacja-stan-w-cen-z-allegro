@@ -1,44 +1,69 @@
+import streamlit as st
 import pandas as pd
 
-# ======== KONFIGURACJA ========
-EMP_FILE = 'empik.xlsx'         # plik Empik
-ALLE_FILE = 'allegro.xlsx'      # plik Allegro
-OUT_FILE = 'wynik.xlsx'         # plik wynikowy
-# ==============================
+st.title("Empik – aktualizacja z pliku Allegro")
 
-def main():
-    print("\nℹ️ Upewnij się, że pliki Excel mają nagłówki w pierwszym wierszu:")
-    print("Kolumna A = ID, Kolumna B = Cena, Kolumna C = Ilość")
-    print("Przykład nagłówka: ID | Cena | Ilość\n")
+st.info("""
+ℹ️ Wymagany format plików Excel (.xlsx):  
+- Nagłówek w pierwszym wierszu: **ID | Cena | Ilość**  
+- Kolumna A = ID  
+- Kolumna B = Cena  
+- Kolumna C = Ilość
+""")
 
-    # 1️⃣ Wczytanie plików Excel z nagłówkiem
-    empik_df = pd.read_excel(EMP_FILE)
-    allegro_df = pd.read_excel(ALLE_FILE)
+# 1️⃣ Upload plików
+empik_file = st.file_uploader("Wgraj plik EMPIK (.xlsx)", type=["xlsx"])
+allegro_file = st.file_uploader("Wgraj plik ALLEGRO (.xlsx)", type=["xlsx"])
 
-    print("✅ Wczytano plik Empik:")
-    print(empik_df.head(), '\n')
-    
-    print("✅ Wczytano plik Allegro:")
-    print(allegro_df.head(), '\n')
+if empik_file and allegro_file:
+    try:
+        # 2️⃣ Wczytanie danych
+        empik_df = pd.read_excel(empik_file)
+        allegro_df = pd.read_excel(allegro_file)
 
-    # 2️⃣ LEFT JOIN – zachowujemy WSZYSTKIE ID z Empik
-    merged = pd.merge(
-        empik_df[['ID']],        # tylko kolumna ID z Empik
-        allegro_df,              # pełne dane z Allegro
-        on='ID',
-        how='left'
-    )
+        st.success("✅ Pliki zostały wczytane poprawnie!")
 
-    # 3️⃣ Wypełnienie braków zerami
-    merged['Cena'] = merged['Cena'].fillna(0)
-    merged['Ilość'] = merged['Ilość'].fillna(0).astype(int)
+        st.subheader("Podgląd – Empik")
+        st.dataframe(empik_df)
 
-    print("✅ Wynik po połączeniu:")
-    print(merged.head(), '\n')
+        st.subheader("Podgląd – Allegro")
+        st.dataframe(allegro_df)
 
-    # 4️⃣ Zapis do pliku Excel
-    merged.to_excel(OUT_FILE, index=False)
-    print(f"✅ Wynik zapisany do pliku: {OUT_FILE}")
+        # 3️⃣ Join – tylko kolumna ID z Empik, dane z Allegro
+        result = pd.merge(
+            empik_df[['ID']],
+            allegro_df,
+            on='ID',
+            how='left'
+        )
 
-if __name__ == '__main__':
-    main()
+        # 4️⃣ Uzupełnienie braków
+        result['Cena'] = result['Cena'].fillna(0)
+        result['Ilość'] = result['Ilość'].fillna(0).astype(int)
+
+        st.subheader("✅ Wynik")
+        st.dataframe(result)
+
+        # 5️⃣ Export do Excel
+        @st.cache_data
+        def to_excel(df):
+            from io import BytesIO
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False)
+            processed_data = output.getvalue()
+            return processed_data
+
+        excel_data = to_excel(result)
+        st.download_button(
+            label="📥 Pobierz wynik (.xlsx)",
+            data=excel_data,
+            file_name='wynik.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+    except Exception as e:
+        st.error(f"Błąd przetwarzania plików: {e}")
+
+else:
+    st.warning("⚠️ Wgraj oba pliki, żeby kontynuować.")
