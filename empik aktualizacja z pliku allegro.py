@@ -12,7 +12,7 @@ Nagłówki z Twoich plików są IGNOROWANE!
 """)
 
 # 1) Upload plików
-e mpik_file = st.file_uploader("📤 Wgraj plik EMPiK (.xlsx)", type=["xlsx"])
+empik_file = st.file_uploader("📤 Wgraj plik EMPiK (.xlsx)", type=["xlsx"])
 allegro_file = st.file_uploader("📤 Wgraj plik ALLEGRO (.xlsx)", type=["xlsx"])
 
 def clean_id_column(s: pd.Series) -> pd.Series:
@@ -60,7 +60,7 @@ if empik_file and allegro_file:
         # 6) LEFT JOIN → wszystkie ID z Empik
         result = pd.merge(empik_df, allegro_df, on='ID', how='left')
 
-        # 7) Uzupełnienie braków zerami.
+        # 7) Uzupełnienie braków zerami
         result['Cena'] = result['Cena'].fillna(0)
         result['Ilość'] = result['Ilość'].fillna(0).astype(int)
 
