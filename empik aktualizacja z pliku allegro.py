@@ -11,8 +11,8 @@ st.info("""
 Nagłówki z Twoich plików są IGNOROWANE!
 """)
 
-# 1) Upload plików
-empik_file = st.file_uploader("📤 Wgraj plik EMPiK (.xlsx)", type=["xlsx"])
+# 1) uploader
+empik_file   = st.file_uploader("📤 Wgraj plik EMPiK (.xlsx)",   type=["xlsx"])
 allegro_file = st.file_uploader("📤 Wgraj plik ALLEGRO (.xlsx)", type=["xlsx"])
 
 def clean_id_column(s: pd.Series) -> pd.Series:
@@ -25,30 +25,27 @@ def clean_id_column(s: pd.Series) -> pd.Series:
 
 if empik_file and allegro_file:
     try:
-        # 2) Wczytaj plik EMPiK (ID jako tekst)
+        # 2) Wczytaj Empik tylko kolumna A (ID)
         empik_df = pd.read_excel(
             empik_file,
-            usecols=[0], header=None, names=['ID'], engine='openpyxl', dtype=str
-        ).fillna('')
+            usecols=[0],        # tylko pierwsza kolumna
+            header=None,        # ignorujemy nagłówek
+            names=['ID'],       # nadajemy własną nazwę
+            engine='openpyxl'
+        )
 
-        # 3) Wczytaj plik ALLEGRO (surowe wartości)
+        # 3) Wczytaj Allegro kolumny A–C (ID, Cena, Ilość)
         allegro_df = pd.read_excel(
             allegro_file,
-            usecols=[0,1,2], header=None, names=['ID','Cena','Ilość'], engine='openpyxl'
-        ).fillna('')
+            usecols=[0,1,2],    # trzy pierwsze kolumny
+            header=None,
+            names=['ID','Cena','Ilość'],
+            engine='openpyxl'
+        )
 
-        # 4) Normalizacja ID w obu DataFrame
-        empik_df['ID'] = clean_id_column(empik_df['ID'])
+        # 4) Ujednolicenie ID
+        empik_df['ID']   = clean_id_column(empik_df['ID'])
         allegro_df['ID'] = clean_id_column(allegro_df['ID'])
-
-        # 5) Ujednolicenie formatu liczbowego dla kolumn Cena i Ilość
-        for col in ['Cena', 'Ilość']:
-            # Zamiana przecinków na kropki oraz rzutowanie na string
-            serie = allegro_df[col].astype(str).str.replace(',', '.', regex=True)
-            # Konwersja na liczbę zmiennoprzecinkową
-            num = pd.to_numeric(serie, errors='coerce').fillna(0)
-            # Ilość jako int, Cena jako float
-            allegro_df[col] = num.astype(int) if col == 'Ilość' else num
 
         st.success("✅ Pliki poprawnie wczytane i znormalizowane!")
         st.subheader("Empik (lista ID do aktualizacji)")
@@ -57,23 +54,28 @@ if empik_file and allegro_file:
         st.subheader("Allegro (źródło prawdy: ID, Cena, Ilość)")
         st.dataframe(allegro_df)
 
-        # 6) LEFT JOIN → wszystkie ID z Empik
-        result = pd.merge(empik_df, allegro_df, on='ID', how='left')
+        # 5) LEFT JOIN → wszystkie ID z Empik
+        result = pd.merge(
+            empik_df,
+            allegro_df,
+            on='ID',
+            how='left'
+        )
 
-        # 7) Uzupełnienie braków zerami
+        # 6) Uzupełnienie braków zerami
         result['Cena'] = result['Cena'].fillna(0)
         result['Ilość'] = result['Ilość'].fillna(0).astype(int)
 
         st.subheader("Wynik aktualizacji")
         st.dataframe(result)
 
-        # 8) Przygotowanie do pobrania
+        # 7) Przygotowanie do pobrania
         @st.cache_data
         def to_excel(df: pd.DataFrame) -> bytes:
             from io import BytesIO
             out = BytesIO()
-            with pd.ExcelWriter(out, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False)
+            with pd.ExcelWriter(out, engine='openpyxl') as w:
+                df.to_excel(w, index=False)
             return out.getvalue()
 
         st.download_button(
